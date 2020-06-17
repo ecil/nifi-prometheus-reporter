@@ -3,7 +3,11 @@ package org.apache.nifi.reporting.prometheus.api;
 import com.yammer.metrics.core.VirtualMachineMetrics;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
+import org.apache.nifi.controller.status.ConnectionStatus;
 import org.apache.nifi.controller.status.ProcessGroupStatus;
+import org.apache.nifi.controller.status.ProcessorStatus;
+import org.apache.nifi.controller.status.RunStatus;
+import org.apache.nifi.util.StringUtils;
 
 import java.util.concurrent.TimeUnit;
 
@@ -27,6 +31,18 @@ public class PrometheusMetricsFactory {
             .name("process_group_amount_bytes_total")
             .help("Total number of Bytes in ProcessGroup")
             .labelNames("status", "application", "process_group")
+            .register(NIFI_METRICS_REGISTRY);
+
+    private static final Gauge PROCESSOR_CONNECTIONS_STATS_TOTALS = Gauge.build()
+            .name("processor_connections_stats_totals")
+            .help("Stats in Processor Connections")
+            .labelNames("name","param","application", "process_group","definer")
+            .register(NIFI_METRICS_REGISTRY);
+
+    private static final Gauge PROCESSOR_STATS_TOTALS = Gauge.build()
+            .name("processor_stats_totals")
+            .help("Stats in Processor")
+            .labelNames("name","param","application", "process_group")
             .register(NIFI_METRICS_REGISTRY);
 
     private static final Gauge AMOUNT_THREADS_TOTAL = Gauge.build()
@@ -99,7 +115,29 @@ public class PrometheusMetricsFactory {
 
         AMOUNT_THREADS_TOTAL.labels("nano", applicationId, processGroupName).set(status.getActiveThreadCount());
 
+
+        for(ConnectionStatus conStat:status.getConnectionStatus()){
+            PROCESSOR_CONNECTIONS_STATS_TOTALS.labels(conStat.getName(),"inputCount",applicationId,processGroupName,getConnectionDefiner(conStat.getSourceName(),conStat.getDestinationName())).set(conStat.getInputCount());
+            PROCESSOR_CONNECTIONS_STATS_TOTALS.labels(conStat.getName(),"outputCount",applicationId,processGroupName,getConnectionDefiner(conStat.getSourceName(),conStat.getDestinationName())).set(conStat.getOutputCount());
+            PROCESSOR_CONNECTIONS_STATS_TOTALS.labels(conStat.getName(),"queuedCount",applicationId,processGroupName,getConnectionDefiner(conStat.getSourceName(),conStat.getDestinationName())).set(conStat.getQueuedCount());
+            PROCESSOR_CONNECTIONS_STATS_TOTALS.labels(conStat.getName(),"thresholdCount",applicationId,processGroupName,getConnectionDefiner(conStat.getSourceName(),conStat.getDestinationName())).set(conStat.getBackPressureObjectThreshold());
+        }
+
+        for(ProcessorStatus procStats:status.getProcessorStatus()){
+            PROCESSOR_STATS_TOTALS.labels(procStats.getName(),"inputCount",applicationId,processGroupName).set(procStats.getInputCount());
+            PROCESSOR_STATS_TOTALS.labels(procStats.getName(),"outputCount",applicationId,processGroupName).set(procStats.getOutputCount());
+            PROCESSOR_STATS_TOTALS.labels(procStats.getName(),"running",applicationId,processGroupName).set(RunStatus.Running.equals(procStats.getRunStatus())?1:0);
+        }
+
         return NIFI_METRICS_REGISTRY;
+    }
+    public static String getConnectionDefiner(String source, String destination){
+        String definer ="";
+        definer = StringUtils.isBlank(source)?"emptySource":source;
+
+        definer +="_";
+        definer += StringUtils.isBlank(destination)?"emptyDestination":destination;
+        return  definer.toLowerCase();
     }
 
     public static CollectorRegistry createJvmMetrics(VirtualMachineMetrics jvmMetrics) {

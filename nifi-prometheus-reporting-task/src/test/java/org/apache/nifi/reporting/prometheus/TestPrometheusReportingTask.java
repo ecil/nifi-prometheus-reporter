@@ -67,6 +67,7 @@ public class TestPrometheusReportingTask {
         status.setOutputContentSize(Integer.toUnsignedLong(0));
 
 
+
         // create a processor status with processing time
         ProcessorStatus procStatus = new ProcessorStatus();
         procStatus.setProcessingNanos(123456789);

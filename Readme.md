@@ -3,7 +3,10 @@
 A reporting task in Nifi which is capable of sending monitoring statistics as 
 prometheus metrics to a prometheus pushgateway. After this, the Prometheus
 server scrapes the metrics from the pushgateway. 
+##Modified Points from forked branch
+This version collects metrics from SubProcessor Group, Processor, Processor Connections too. Orginal version only collects root level Processor Group metrics.
 
+ 
 ## Getting Started
 
 For setting up the requirements there is a docker-compose file in docker/prometheus, that sets up the Pushgateway, the Prometheus server and a Grafana server.
@@ -55,6 +58,9 @@ and it is also not the scope of this project.
 
 The project can be build with maven as the standard fashion of building 
 nifi-processor-bundles. Following snippet shows the entire setup with pre-installed Nifi:
+
+
+
 ```sh
 # Clone project
 git clone https://github.com/mkjoerg/nifi-prometheus-reporter.git

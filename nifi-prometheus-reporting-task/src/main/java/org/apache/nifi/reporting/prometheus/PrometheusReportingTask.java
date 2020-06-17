@@ -33,7 +33,9 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.PropertyValue;
+import org.apache.nifi.controller.status.ConnectionStatus;
 import org.apache.nifi.controller.status.ProcessGroupStatus;
+import org.apache.nifi.controller.status.ProcessorStatus;
 import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.AbstractReportingTask;
@@ -148,7 +150,6 @@ public class PrometheusReportingTask extends AbstractReportingTask {
         final String jobName = context.getProperty(JOB_NAME).getValue();
         final String instance = context.getProperty(INSTANCE_ID).evaluateAttributeExpressions().getValue();
         final Map<String,String> groupingKey = Collections.singletonMap("instance", instance);
-
         // Init PushGateway
         final PushGateway pushGateway = new PushGateway(metricsCollectorUrl);
         if(context.getProperty(USE_AUTHENTICATION).asBoolean()){
@@ -164,16 +165,33 @@ public class PrometheusReportingTask extends AbstractReportingTask {
         } catch (IOException e) {
             getLogger().error("Failed pushing JVM-metrics to Prometheus PushGateway due to {}; routing to failure", e);
         }
+        getLogger().info(context.toString());
 
         for (ProcessGroupStatus status : searchProcessGroups(context, context.getProperty(PROCESS_GROUP_IDS))) {
-            try {
-                pushGateway.pushAdd(PrometheusMetricsFactory.createNifiMetrics(status, applicationId), jobName, groupingKey);
-            } catch (IOException e) {
-                getLogger().error("Failed pushing Nifi-metrics to Prometheus PushGateway due to {}; routing to failure", e);
-            }
+            iterateGroup(status,context,jobName,applicationId,groupingKey,pushGateway);
         }
     }
+    private void iterateGroup(ProcessGroupStatus status,ReportingContext context,String jobName,String applicationId, Map<String,String> groupingKey,PushGateway pushGateway ){
+        if(status.getProcessGroupStatus().size()>0){
+            for(ProcessGroupStatus subStatus:status.getProcessGroupStatus()){
+                iterateGroup(subStatus,context,jobName,applicationId,groupingKey,pushGateway);
+            }
+        }
+        else{
+            logStatus(status,context,jobName,applicationId,groupingKey,pushGateway);
+        }
+    }
+    private void logStatus(ProcessGroupStatus status,ReportingContext context,String jobName,String applicationId, Map<String,String> groupingKey,PushGateway pushGateway ){
 
+        try {
+            pushGateway.pushAdd(PrometheusMetricsFactory.createNifiMetrics(status, applicationId), jobName, groupingKey);
+        } catch (IOException e) {
+            getLogger().error("Failed pushing Nifi-metrics to Prometheus PushGateway due to {}; routing to failure", e);
+        }
+
+
+
+    }
     /**
      * Searches all ProcessGroups defined in a PropertyValue as a comma-separated list of ProcessorGroup-IDs.
      * Therefore blanks are trimmed and new-line characters are removed! Processors that can not be found are ignored.
@@ -184,7 +202,6 @@ public class PrometheusReportingTask extends AbstractReportingTask {
     private ProcessGroupStatus[] searchProcessGroups(final ReportingContext context, PropertyValue value) {
         if (value.isSet()) {
             String content = value.evaluateAttributeExpressions().getValue();
-
             ProcessGroupStatus[] groups = Arrays
                     .stream(content.replace("\n", "").split(","))
                     .map(String::trim)
