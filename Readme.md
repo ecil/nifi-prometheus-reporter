@@ -3,7 +3,7 @@
 A reporting task in Nifi which is capable of sending monitoring statistics as 
 prometheus metrics to a prometheus pushgateway. After this, the Prometheus
 server scrapes the metrics from the pushgateway. 
-##Modified Points from forked branch
+## Modified Points from forked branch
 This version collects metrics from SubProcessor Group, Processor, Processor Connections too. Orginal version only collects root level Processor Group metrics.
 
  
